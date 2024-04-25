@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+  <!--
+    SPDX-FileCopyrightText: 2023 The Pion community <https://pion.ly>
+    SPDX-License-Identifier: MIT
+  -->
+
+  <head>
+    <meta charset="utf-8">
+  </head>
+  <body>
+    <h3> Local Video </h3>
+    <video id="localVideo" width="160" height="120" autoplay muted></video> <br />
+
+    <h3> Remote Video </h3>
+    <div id="remoteVideos"></div> <br />
+
+    <h3> Logs </h3>
+    <div id="logs"></div>
+  </body>
+
+  <script>
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+    .then(stream => {
+      document.getElementById('localVideo').srcObject = stream
+      let mediaRecorder = new MediaRecorder(stream, {mimeType: 'video/webm;codecs=vp8,opus'})
+
+      const webSocket = new WebSocket(`ws://${window.location.host}/websocket`)
+      webSocket.onopen = function(evt) {
+        mediaRecorder.start(20)
+      }
+
+      webSocket.onclose = function(evt) {
+        window.alert("Websocket has closed")
+      }
+
+      mediaRecorder.ondataavailable = e =>  {
+        webSocket.send(e.data)
+      }
+
+      webSocket.onmessage = function(evt) {
+      }
+
+      webSocket.onerror = function(evt) {
+        window.alert("ERROR: " + evt.data)
+      }
+    }).catch(window.alert)
+  </script>
+</html>

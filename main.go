@@ -21,8 +21,6 @@ var (
 	apiSecret = flag.String("api-secret", "", "livekit api secret")
 	roomName  = flag.String("room-name", "", "room name")
 	identity  = flag.String("identity", "", "participant identity")
-
-	clusterId = []byte{0x1F, 0x43, 0xB6, 0x75}
 )
 
 func websocketServer(ws *websocket.Conn) {
@@ -37,11 +35,6 @@ func websocketServer(ws *websocket.Conn) {
 			Block ebml.Block `ebml:"SimpleBlock,stop"`
 		}
 
-		timestamp struct {
-			Timestamp uint64 `ebml:"Timestamp,stop"`
-		}
-
-		bytesBuffer                         bytes.Buffer
 		timestampOffset, lastVideoTimestamp int64
 	)
 
@@ -63,17 +56,11 @@ func websocketServer(ws *websocket.Conn) {
 		}
 
 		for {
-			if clusterIndex := bytes.Index(mkvBuff, clusterId); clusterIndex == 0 {
-				mkvBuff = mkvBuff[len(clusterId)+8:] // Remove Cluster ID
-				if err = ebml.Unmarshal(bytes.NewReader(mkvBuff), &timestamp); err != nil && !errors.Is(err, ebml.ErrReadStopped) {
-					panic(err)
-				} else if err = ebml.Marshal(&timestamp, &bytesBuffer); err != nil {
-					panic(err)
-				}
-
-				timestampOffset = int64(timestamp.Timestamp)
-				mkvBuff = mkvBuff[bytesBuffer.Len():]
-				bytesBuffer.Reset()
+			if tsOffset, amountRead, err := readClusterHeader(mkvBuff); err != nil {
+				panic(err)
+			} else if amountRead != -1 {
+				mkvBuff = mkvBuff[amountRead:]
+				timestampOffset = tsOffset
 			}
 
 			currentTimestamp := int64(block.Block.Timecode) + int64(timestampOffset)

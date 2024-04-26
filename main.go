@@ -41,7 +41,8 @@ func websocketServer(ws *websocket.Conn) {
 			Timestamp uint64 `ebml:"Timestamp,stop"`
 		}
 
-		bytesBuffer bytes.Buffer
+		bytesBuffer                         bytes.Buffer
+		timestampOffset, lastVideoTimestamp int64
 	)
 
 	for {
@@ -70,9 +71,14 @@ func websocketServer(ws *websocket.Conn) {
 					panic(err)
 				}
 
+				timestampOffset = int64(timestamp.Timestamp)
 				mkvBuff = mkvBuff[bytesBuffer.Len():]
 				bytesBuffer.Reset()
 			}
+
+			currentTimestamp := int64(block.Block.Timecode) + int64(timestampOffset)
+			millisecondDiff := currentTimestamp - lastVideoTimestamp
+			lastVideoTimestamp = currentTimestamp
 
 			if err = ebml.Unmarshal(bytes.NewReader(mkvBuff), &block); errors.Is(err, io.ErrUnexpectedEOF) {
 				break
@@ -83,7 +89,7 @@ func websocketServer(ws *websocket.Conn) {
 			}
 
 			if block.Block.TrackNumber == 2 {
-				if err = videoTrack.WriteSample(media.Sample{Data: block.Block.Data[0], Duration: time.Second}, nil); err != nil {
+				if err = videoTrack.WriteSample(media.Sample{Data: block.Block.Data[0], Duration: time.Duration(millisecondDiff) * time.Millisecond}, nil); err != nil {
 					panic(err)
 				}
 			}
